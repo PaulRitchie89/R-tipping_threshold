@@ -1,0 +1,424 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Jan 20 14:08:21 2026
+
+@author: Paul
+
+Script that produces Fig 5 in "Evaluating the skill of a
+geometric early warning for tipping in a rapidly forced nonlinear system"
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from matplotlib import rc
+
+
+fontsize = 12
+rc('font', **{'size' : fontsize})
+rc('text', usetex=True)
+
+
+def BoxModel_2DH_IVP(t,x,H):
+
+    """
+    Reduction of Richard Wood's 5 box model to 3 box model for AMOC
+    
+    Parameters
+    ----------
+    t : float64
+        Time
+    x : float64
+        Vector of state variables (SN, ST).
+    H : float64
+        Freshwater hosing acting as external forcing
+
+    Returns
+    -------
+    z : float64
+        RHS of ODE.
+    """
+    
+    # Model parameters for 2 x CO2
+    S0 = 0.035
+
+    alpha = 0.12 # kg m^-3 C^-1
+    beta = 790.0 # kg m^-3 
+    Y = 3.15e7 # sec/year
+
+    VN = 0.3683e17 # m^3
+    VT = 0.5418e17 # m^3
+    VS = 0.6097e17 # m^3
+    VIP = 1.4860e17 # m^3
+    VB = 9.9250e17 # m^3
+
+    Ts = 7.919 # C
+    T0 = 3.87 # C
+    
+    C = 4.4735e16 # m^3 (total sum of V*S)
+
+    lamb = 1.62e7 # m^6kg^-1s^-1
+    gamma = 0.36
+    mu = 22e-8 # deg s m^-3
+    
+    KN = 1.762e6 # m^3s^-1
+    KS = 1.872e6 # m^3s^-1
+
+    FN = (0.486+0.1311*H)*1e6 # m^3s^-1
+    FT = (-0.997+0.6961*H)*1e6 # m^3s^-1
+
+    #====================================================
+
+    SN = x[0]
+    ST = x[1]
+    SS = (0.034427-S0)*100
+    SB = (0.034538-S0)*100
+    SIP = 100*(C-(VN*SN+VT*ST+VS*SS+VB*SB)/100-S0*(VB+VN+VT+VIP+VS))/VIP
+
+    q = lamb*(alpha*(Ts-T0)+beta*(SN-SS)/100)/(1+lamb*alpha*mu)
+    aq = np.abs(q)
+
+    z0p = (Y/VN)*(q*(ST-SN)+KN*(ST-SN)-100*FN*S0)
+    z1p = (Y/VT)*(q*(gamma*SS+(1-gamma)*SIP-ST)+KS*(SS-ST)+KN*(SN-ST)-100*FT*S0)
+
+    z0n = (Y/VN)*(aq*(SB-SN)+KN*(ST-SN)-100*FN*S0)
+    z1n = (Y/VT)*(aq*(SN-ST)+KS*(SS-ST)+KN*(SN-ST)-100*FT*S0)
+    
+    z = np.zeros(2)
+
+    z[0] = z0p*(q>=0)+z0n*(q<0)
+    z[1] = z1p*(q>=0)+z1n*(q<0)
+
+    return(z)
+    
+
+def H(t,H0,H1,r1,r2,tpause,tstart):
+    """
+    Piecewise linear freshwater hosing
+    
+    Parameters
+    ----------
+    t : float64
+        Time
+    H0 : float64
+        Initial freshwater hosing level.
+    H1 : float64
+        Final freshwater hosing level.
+    r1 : float64
+        Rate of forcing increase
+    r2 : float64
+        Rate of forcing decrease
+    tpause : float64
+        Plataeu period
+    tstart : float64
+        Start time of forcing
+
+    Returns
+    -------
+    Hforcing : float64
+        Piecewise linear freshwater hosing profile.
+    """
+    Hrampup = (H0 + r1*(t-tstart))
+    Hrampdown = (H1 - r2*(t-(H1-H0)/r1-tpause-tstart))
+    
+    Hforcing = H0*(t<tstart) + Hrampup*(tstart<=t<(H1-H0)/r1+tstart) + (H0 + H1)*((H1-H0)/r1+tstart<=t<(H1-H0)/r1+tpause+tstart) +  Hrampdown*((H1-H0)/r1+tpause+tstart<=t<(r1+r2)*(H1-H0)/(r1*r2)+tpause+tstart) + H0*(t>=(r1+r2)*(H1-H0)/(r1*r2)+tpause+tstart)
+    return(Hforcing)    
+
+######################### Equilibria #########################################
+    
+S0 = 0.035
+
+alpha = 0.12 # kg m^-3 C^-1
+beta = 790.0 # kg m^-3 
+Y = 3.15e7 # sec/year
+
+VN = 0.3683e17 # m^3
+VT = 0.5418e17 # m^3
+VS = 0.6097e17 # m^3
+VIP = 1.4860e17 # m^3
+VB = 9.9250e17 # m^3
+
+Ts = 7.919 # C
+T0 = 3.87 # C
+
+C = 4.4735e16 # m^3 (total sum of V*S)
+
+lamb = 1.62e7 # m^6kg^-1s^-1
+gamma = 0.36
+mu = 22e-8 # deg s m^-3
+
+KN = 1.762e6 # m^3s^-1
+KS = 1.872e6 # m^3s^-1
+
+#====================================================
+
+SS = (0.034427-S0)*100
+SB = (0.034538-S0)*100
+
+FN1 = 0.1311E6
+FN0 = 0.486E6
+FT1 = 0.6961E6
+FT0 = -0.997E6
+
+SN = np.linspace(-0.3, 0.3, 1000001)
+
+SIPbar = 100*(C-(VN*SN+VS*SS+VB*SB)/100-S0*(VB+VN+VT+VIP+VS))/VIP
+q = lamb*(alpha*(Ts-T0)+beta*(SN-SS)/100)/(1+lamb*alpha*mu)
+
+ST = (FN1*q*(gamma*SS + (1-gamma)*SIPbar) + FN1*KS*SS + FN1*KN*SN - S0*FT0*FN1*100 + FT1*q*SN + FT1*KN*SN + FT1*FN0*S0*100)/(FN1*q*(1-gamma)*VT/VIP + FN1*q + FN1*KS + FN1*KN + FT1*q + FT1*KN)
+H2 = ((q*(ST-SN) + KN*(ST-SN))/(100*S0) - FN0)/FN1
+
+H_sad1 = H2[np.where((q>=0)&(SN<-0.059)&(H2>=-0.05))]
+SN_sad1 = SN[np.where((q>=0)&(SN<-0.059)&(H2>=-0.05))]
+ST_sad1 = ST[np.where((q>=0)&(SN<-0.059)&(H2>=-0.05))]
+
+# On state equilibrium
+H_on = H2[np.where((q>=0)&(SN>-0.059)&(H2>=-0.05))]
+SN_on = SN[np.where((q>=0)&(SN>-0.059)&(H2>=-0.05))]
+ST_on = ST[np.where((q>=0)&(SN>-0.059)&(H2>=-0.05))]
+
+aq = np.abs(q)
+
+ST = (aq*SN + KS*SS + KN*SN - S0*FT0*100 - FT1*(aq*(SB-SN) - KN*SN)/FN1 + FT1*FN0*S0*100/FN1)/(aq + KS + KN + FT1*KN/FN1)
+H2 = ((aq*(SB-SN) + KN*(ST-SN))/(100*S0) - FN0)/FN1
+
+# Off state equilibrium
+H_off = H2[np.where((q<0)&(SN<-0.15)&(H2>=-0.05))]
+SN_off = SN[np.where((q<0)&(SN<-0.15)&(H2>=-0.05))]
+ST_off = ST[np.where((q<0)&(SN<-0.15)&(H2>=-0.05))]
+
+H_sad2 = H2[np.where((q<0)&(SN>-0.15)&(H2>=-0.05))]
+SN_sad2 = SN[np.where((q<0)&(SN>-0.15)&(H2>=-0.05))]
+ST_sad2 = ST[np.where((q<0)&(SN>-0.15)&(H2>=-0.05))]
+
+# Saddle equilibrium
+H_sad = np.concatenate((H_sad2,H_sad1))
+SN_sad = np.concatenate((SN_sad2,SN_sad1))
+ST_sad = np.concatenate((ST_sad2,ST_sad1))
+
+
+##############################################################################
+
+# Forcing parameters
+H0 = 0                                      # Initial forcing
+H1 = 0.38                                   # Final forcing
+tup = 100                                   # Ramp up period
+tpause = 300                                # Plataeu period (choose 300 (left fig panels) or 400 (right fig panels))
+tdown = 200                                 # Ramp down period
+tstart = 0                                  # Start of forcing
+
+r1 = H1/tup                                 # Rate of forcing increase
+r2 = H1/tdown                               # Rate of forcing decrease
+
+
+# Time settings for calculation of stable manifold(s) of saddle
+tspan = [4000, 0]
+h = -1
+t = np.arange(tspan[0],tspan[1]+h,h)
+
+# Indicies of on state and saddle at H0
+ind11 = np.argmin(np.abs(H_sad-H0))
+ind22 = np.argmin(np.abs(H_on-H0))
+
+# Initialise variables
+X22 = np.zeros((2,len(t)+1))
+Y22 = np.zeros((2,len(t)+1))
+
+# Start just away from saddle   
+X22[:,0] = [SN_sad[ind11],ST_sad[ind11]+0.000001]
+Y22[:,0] = [SN_sad[ind11],ST_sad[ind11]-0.000001]
+
+# Perform Forward-Euler backwards in time from saddle    
+for j in range(len(t)):
+    X22[:,j+1] = X22[:,j] + h*BoxModel_2DH_IVP(t[j],X22[:,j],H_sad[ind11])
+    Y22[:,j+1] = Y22[:,j] + h*BoxModel_2DH_IVP(t[j],Y22[:,j],H_sad[ind11])
+
+Z22 = np.concatenate((X22,Y22),axis=1)
+
+# Set max and min limits for SN and ST
+SN_low = 0.02
+SN_high = 0.04
+ST_low = 0.02
+ST_high = 0.045
+
+# Number of points to dicretise along the R-tipping threshold
+Nvals = 3200
+
+# Identify data points of basin boundary (for zero/end of forcing) within max and min limits
+Y22SN = Z22[0,(SN_low<S0+Z22[0,:]/100) & (S0+Z22[0,:]/100<=SN_high) & (ST_low<S0+Z22[1,:]/100) & (S0+Z22[1,:]/100<=ST_high)]
+Y22ST = Z22[1,(SN_low<S0+Z22[0,:]/100) & (S0+Z22[0,:]/100<=SN_high) & (ST_low<S0+Z22[1,:]/100) & (S0+Z22[1,:]/100<=ST_high)]
+
+# Evenly discretise points along basin boundary
+dr = (np.diff(Y22SN)**2 + np.diff(Y22ST)**2)**.5 # segment lengths
+r = np.zeros_like(Y22SN)
+r[1:] = np.cumsum(dr) # integrate path
+r_int = np.linspace(0, r.max(), Nvals) # regular spaced path
+x_int = np.interp(r_int, r, Y22SN) # interpolate
+y_int = np.interp(r_int, r, Y22ST)
+
+# Time settings for calculation of R-tipping threshold
+tspan = [1200, 0]
+h = -1
+t = np.arange(tspan[0],tspan[1]+h,h)
+
+# Initialise arrays
+X1 = np.zeros((2,len(t),len(x_int)))
+r_stats = np.zeros((2,len(t)-1))
+r_stats1 = np.zeros((2,len(t)-1))
+r_stats2 = np.zeros((2,len(t)-1))
+r_stats3 = np.zeros((2,len(t)-1))
+DR = np.zeros(len(t)-1)
+
+x0 = [x_int,y_int]
+
+X1[:,0,:] = x0
+
+for i in range(len(t)-1):
+    
+    # Forward Euler step (backwards in time) for each point on R-tipping threshold
+    for j in range(len(x_int)):
+        X1[:,i+1,j] = X1[:,i,j] + h*BoxModel_2DH_IVP(t[i],X1[:,i,j],H(t[i],H0,H1,r1,r2,tpause,tstart))
+    
+    # Current points on R-tipping threshold within region of interest
+    X1SN = X1[0,i+1,(SN_low<S0+X1[0,i+1,:]/100) & (S0+X1[0,i+1,:]/100<=SN_high) & (ST_low<S0+X1[1,i+1,:]/100) & (S0+X1[1,i+1,:]/100<=ST_high)]
+    X1ST = X1[1,i+1,(SN_low<S0+X1[0,i+1,:]/100) & (S0+X1[0,i+1,:]/100<=SN_high) & (ST_low<S0+X1[1,i+1,:]/100) & (S0+X1[1,i+1,:]/100<=ST_high)]
+    
+    dr = (np.diff(X1SN)**2 + np.diff(X1ST)**2)**.5 # segment lengths    
+    DR[i] = np.max(X1SN)-np.min(X1SN)
+    
+    # Re-initialise evenly spaced points along R-tipping threshold 
+    if (len(X1SN) < len(X1[0,i+1,:])) & (np.max(dr)>0.1):
+        biggest_dr_pos = np.sort(np.argpartition(dr, len(dr)-2)[-2:])
+        if biggest_dr_pos[0] == 0:
+            X1SN1 = X1SN[:biggest_dr_pos[1]+1]
+            X1ST1 = X1ST[:biggest_dr_pos[1]+1]
+            dr1 = dr[:biggest_dr_pos[1]]
+            r11 = np.zeros_like(X1SN1)
+            r_stats1[:,i] = np.max(dr1),len(X1SN1)
+            r11[1:] = np.cumsum(dr1) # integrate path
+            r_int1 = np.linspace(0, r11.max(), len(X1SN1)) # regular spaced path
+            X1[0,i+1,:], X1[1,i+1,:] = np.nan, np.nan
+            X1[0,i+1,:biggest_dr_pos[1]+1] = np.interp(r_int1, r11, X1SN1) # interpolate
+            X1[1,i+1,:biggest_dr_pos[1]+1] = np.interp(r_int1, r11, X1ST1)
+            X1SN2 = X1SN[biggest_dr_pos[1]+2:]
+            X1ST2 = X1ST[biggest_dr_pos[1]+2:]
+            dr2 = dr[biggest_dr_pos[1]+2:]
+            r22 = np.zeros_like(X1SN2)
+            r_stats2[:,i] = np.max(dr2),len(X1SN2)
+            r22[1:] = np.cumsum(dr2) # integrate path
+            r_int2 = np.linspace(0, r22.max(), len(X1SN2)) # regular spaced path
+            X1[0,i+1,biggest_dr_pos[1]+2:len(X1SN)] = np.interp(r_int2, r22, X1SN2) # interpolate
+            X1[1,i+1,biggest_dr_pos[1]+2:len(X1SN)] = np.interp(r_int2, r22, X1ST2)
+        else:
+            X1SN1 = X1SN[:biggest_dr_pos[0]+1]
+            X1ST1 = X1ST[:biggest_dr_pos[0]+1]
+            dr1 = dr[:biggest_dr_pos[0]]
+            r11 = np.zeros_like(X1SN1)
+            r_stats1[:,i] = np.max(dr1),len(X1SN1)
+            r11[1:] = np.cumsum(dr1) # integrate path
+            r_int1 = np.linspace(0, r11.max(), len(X1SN1)) # regular spaced path
+            X1[0,i+1,:], X1[1,i+1,:] = np.nan, np.nan
+            X1[0,i+1,:biggest_dr_pos[0]+1] = np.interp(r_int1, r11, X1SN1) # interpolate
+            X1[1,i+1,:biggest_dr_pos[0]+1] = np.interp(r_int1, r11, X1ST1)
+            if biggest_dr_pos[1]-biggest_dr_pos[0] > 1:
+                X1SN2 = X1SN[biggest_dr_pos[0]+1:biggest_dr_pos[1]+1]
+                X1ST2 = X1ST[biggest_dr_pos[0]+1:biggest_dr_pos[1]+1]
+                X1SN3 = X1SN[biggest_dr_pos[1]+1:]
+                X1ST3 = X1ST[biggest_dr_pos[1]+1:]
+                dr2 = dr[biggest_dr_pos[0]+1:biggest_dr_pos[1]]
+                dr3 = dr[biggest_dr_pos[1]+1:]
+                r22 = np.zeros_like(X1SN2)
+                r_stats2[:,i] = np.max(dr2),len(X1SN2)
+                r22[1:] = np.cumsum(dr2) # integrate path
+                r_int2 = np.linspace(0, r22.max(), len(X1SN2)) # regular spaced path
+                r33 = np.zeros_like(X1SN3)
+                r_stats3[:,i] = np.max(dr3),len(X1SN3)
+                r33[1:] = np.cumsum(dr3) # integrate path
+                r_int3 = np.linspace(0, r33.max(), len(X1SN3)) # regular spaced path
+                X1[0,i+1,biggest_dr_pos[0]+1:biggest_dr_pos[1]+1] = np.interp(r_int2, r22, X1SN2) # interpolate
+                X1[1,i+1,biggest_dr_pos[0]+1:biggest_dr_pos[1]+1] = np.interp(r_int2, r22, X1ST2)
+                X1[0,i+1,biggest_dr_pos[1]+1:len(X1SN)] = np.interp(r_int3, r33, X1SN3) # interpolate
+                X1[1,i+1,biggest_dr_pos[1]+1:len(X1SN)] = np.interp(r_int3, r33, X1ST3)
+            else:
+                X1SN2 = X1SN[biggest_dr_pos[0]+2:]
+                X1ST2 = X1ST[biggest_dr_pos[0]+2:]
+                dr2 = dr[biggest_dr_pos[0]+2:]
+                r22 = np.zeros_like(X1SN2)
+                r_stats2[:,i] = np.max(dr2),len(X1SN2)
+                r22[1:] = np.cumsum(dr2) # integrate path
+                r_int2 = np.linspace(0, r22.max(), len(X1SN2)) # regular spaced path
+                X1[0,i+1,biggest_dr_pos[0]+2:len(X1SN)] = np.interp(r_int2, r22, X1SN2) # interpolate
+                X1[1,i+1,biggest_dr_pos[0]+2:len(X1SN)] = np.interp(r_int2, r22, X1ST2)
+    else:
+        r = np.zeros_like(X1SN)
+        r_stats[:,i] = np.max(dr),len(X1SN)
+        r[1:] = np.cumsum(dr) # integrate path
+        r_int = np.linspace(0, r.max(), Nvals) # regular spaced path
+        X1[0,i+1,:] = np.interp(r_int, r, X1SN) # interpolate
+        X1[1,i+1,:] = np.interp(r_int, r, X1ST)
+    
+    
+        
+# Initialise 3d figure (Fig. 5)
+fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+ax.view_init(elev=25, azim=-60)
+
+# Plot R-tipping threshold for 100 evenly spaced time intervals
+for i in range(100):
+    ax.plot(i*10*np.ones(Nvals)+tstart,S0+X1[0,-i*10-1-tstart,:]/100,S0+X1[1,-i*10-1-tstart,:]/100,'k',alpha=0.3)
+
+# Time settings for calculation of stochastic trajectories
+tspan2 = [-200, 1000]
+h2 = 1
+t2 = np.arange(tspan2[0],tspan2[1]+h2,h2)
+
+# Initialise seed
+np.random.seed(1)
+
+# Number of ensembles
+N = 10
+
+# N noise realisations for SN and ST
+randomv = np.random.normal(0, 1, size=(len(t2),N))
+randomv2 = np.random.normal(0, 1, size=(len(t2),N))
+
+# Noise strength and structure
+sigma = 1E-4    # Set sigma = 0 for deterministic case (top row of Fig. 5)
+A11 = 0.1263
+A12 = -0.0869
+A21 = 0
+A22 = 0.1008
+
+A = np.array([[A11, A12], [A21, A22]])
+
+for l in range(N):
+
+    X2 = np.zeros((2,len(t2)))
+    
+    X2[:,0] = [SN_on[ind22],ST_on[ind22]]
+    
+    # Euler-Maryuama for calculating stochastic trajectories
+    for i in range(len(t2)-1):
+        X2[:,i+1] = X2[:,i] + h2*BoxModel_2DH_IVP(t2[i],X2[:,i],H(t2[i],H0,H1,r1,r2,tpause,tstart)) + np.sqrt(h2*sigma)*np.matmul(A,np.array([[randomv[i,l]],[randomv2[i,l]]])).T
+    
+    # If trajectory tips colour red otherwise colour blue
+    if S0+X2[0,-1]/100 < 0.034:
+        ax.plot(t2[t2>0],S0+X2[0,:][t2>0]/100,S0+X2[1,:][t2>0]/100,'red',zorder=1)
+    else:
+        ax.plot(t2[t2>0],S0+X2[0,:][t2>0]/100,S0+X2[1,:][t2>0]/100,'blue',zorder=5)
+
+ax.set_xlabel('Time (years)')
+ax.set_ylabel('$S_N$')
+ax.set_zlabel('$S_T$')
+
+ax.set_ylim(0.041,0.031)
+# make the panes transparent
+ax.xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+ax.yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+ax.zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+# make the grid lines transparent
+ax.xaxis._axinfo["grid"]['color'] =  (1,1,1,0)
+ax.yaxis._axinfo["grid"]['color'] =  (1,1,1,0)
+ax.zaxis._axinfo["grid"]['color'] =  (1,1,1,0)
+
+fig.tight_layout()
