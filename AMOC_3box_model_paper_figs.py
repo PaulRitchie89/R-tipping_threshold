@@ -390,7 +390,7 @@ ax[0].set_ylabel('Freshwater\nhosing (Sv)')
 ax[1].set_ylabel(r'$S_N$')
 ax[2].set_ylabel(r'$S_T$')
 ax[3].set_xlabel('Time (years)')
-ax[3].set_ylabel('Proximity to\nR-tipping threshold')
+ax[3].set_ylabel('Signed distance to\nR-tipping threshold')
 sns.despine()
 
 
