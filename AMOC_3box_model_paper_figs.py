@@ -390,7 +390,7 @@ ax[0].set_ylabel('Freshwater\nhosing (Sv)')
 ax[1].set_ylabel(r'$S_N$')
 ax[2].set_ylabel(r'$S_T$')
 ax[3].set_xlabel('Time (years)')
-ax[3].set_ylabel('Signed distance to\nR-tipping threshold')
+ax[3].set_ylabel('R-tipping indicator')
 sns.despine()
 
 
@@ -442,7 +442,7 @@ Edge_Informedness = Edge_Opt_TPR-Edge_Opt_FPR
 EWS_Informedness = EWS_Opt_TPR-EWS_Opt_FPR
 ax2[1].plot(t[:-1],SN_FOR,label='Optimal $S_N$ threshold')
 ax2[1].plot(t[:-1],ST_FOR,label='Optimal $S_T$ threshold')
-ax2[1].plot(t[:-1],Edge_FOR,label='Optimal R-tipping threshold proximity')
+ax2[1].plot(t[:-1],Edge_FOR,label='Optimal R-tipping indicator')
 ax2[1].plot(t[:-1],EWS_FOR,label='Optimal tau threshold')
 ax2[2].plot(t[:-1],SN_Informedness)
 ax2[2].plot(t[:-1],ST_Informedness)
@@ -477,7 +477,7 @@ Edge_Informedness = Edge_const_TPR-Edge_const_FPR
 EWS_Informedness = EWS_const_TPR-EWS_const_FPR
 ax2[1].plot(t[:-1],SN_FOR,label='Fixed $S_N$ threshold')
 ax2[1].plot(t[:-1],ST_FOR,label='Fixed $S_T$ threshold')
-ax2[1].plot(t[:-1],Edge_FOR,label='Fixed R-tipping threshold proximity')
+ax2[1].plot(t[:-1],Edge_FOR,label='Fixed R-tipping indicator')
 ax2[1].plot(t[:-1],EWS_FOR,label='Fixed tau threshold')
 ax2[2].plot(t[:-1],SN_Informedness)
 ax2[2].plot(t[:-1],ST_Informedness)
