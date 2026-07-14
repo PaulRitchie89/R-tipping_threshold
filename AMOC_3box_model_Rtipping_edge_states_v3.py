@@ -4,7 +4,7 @@ Created on Tue Jan 20 14:08:21 2026
 
 @author: Paul
 
-Script that produces Figs 5 and 7 in "Evaluating the skill of a
+Script that produces Figs 4 and 6 in "Evaluating the skill of a
 geometric early warning for tipping in a rapidly forced nonlinear system"
 """
 
