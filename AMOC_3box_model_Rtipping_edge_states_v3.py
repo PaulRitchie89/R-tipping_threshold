@@ -359,7 +359,7 @@ for i in range(len(t)-1):
     
     
         
-# Initialise 3d figure (Fig. 5)
+# Initialise 3d figure (Fig. 4)
 fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 ax.view_init(elev=25, azim=-60)
 
@@ -424,7 +424,7 @@ ax.zaxis._axinfo["grid"]['color'] =  (1,1,1,0)
 fig.tight_layout()
 
 
-# Plotting R-tipping threshold prior to the start of the forcing (Fig. 7)
+# Plotting R-tipping threshold prior to the start of the forcing (Fig. 6)
 plt.figure()
 for i in range(9):
     plt.plot(S0+X1[0,-400+i*50-1,:]/100,S0+X1[1,-400+i*50-1,:]/100,label=str(i*50)+' years')
