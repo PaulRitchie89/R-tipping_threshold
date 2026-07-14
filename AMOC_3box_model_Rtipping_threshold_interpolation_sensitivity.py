@@ -1,15 +1,23 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Sep  5 16:25:45 2025
+Created on Wed Jun 17 17:38:13 2026
 
 @author: Paul
 
-Script to generate Monte-Carlo simulations data for "Evaluating the skill of a
-geometric early warning for tipping in a rapidly forced nonlinear system" 
+Script that produces top panels of Fig 13 in "Evaluating the skill of a
+geometric early warning for tipping in a rapidly forced nonlinear system"
 """
 
 import numpy as np
-import scipy.io as sp
+import matplotlib.pyplot as plt
+import seaborn as sns
+from matplotlib import rc
+
+
+fontsize = 12
+rc('font', **{'size' : fontsize})
+rc('text', usetex=True)
+
 
 def BoxModel_2DH_IVP(t,x,H):
 
@@ -83,6 +91,7 @@ def BoxModel_2DH_IVP(t,x,H):
 
     return(z)
     
+
 def H(t,H0,H1,r1,r2,tpause,tstart):
     """
     Piecewise linear freshwater hosing
@@ -111,11 +120,9 @@ def H(t,H0,H1,r1,r2,tpause,tstart):
     """
     Hrampup = (H0 + r1*(t-tstart))
     Hrampdown = (H1 - r2*(t-(H1-H0)/r1-tpause-tstart))
-       
-    Hforcing = H0*(t<tstart) + Hrampup*(tstart<=t<(H1-H0)/r1+tstart) + (H1)*((H1-H0)/r1+tstart<=t<(H1-H0)/r1+tpause+tstart) +  Hrampdown*((H1-H0)/r1+tpause+tstart<=t<(r1+r2)*(H1-H0)/(r1*r2)+tpause+tstart) + H0*(t>=(r1+r2)*(H1-H0)/(r1*r2)+tpause+tstart)
     
-    return(Hforcing) 
-    
+    Hforcing = H0*(t<tstart) + Hrampup*(tstart<=t<(H1-H0)/r1+tstart) + (H0 + H1)*((H1-H0)/r1+tstart<=t<(H1-H0)/r1+tpause+tstart) +  Hrampdown*((H1-H0)/r1+tpause+tstart<=t<(r1+r2)*(H1-H0)/(r1*r2)+tpause+tstart) + H0*(t>=(r1+r2)*(H1-H0)/(r1*r2)+tpause+tstart)
+    return(Hforcing)    
 
 ######################### Equilibria #########################################
     
@@ -193,57 +200,117 @@ ST_sad = np.concatenate((ST_sad2,ST_sad1))
 ##############################################################################
 
 # Forcing parameters
-H0 = 0.37#0                                      # Initial forcing
-H1 = 0.4#0.38                                   # Final forcing
+H0 = 0                                      # Initial forcing
+H1 = 0.38                                   # Final forcing
 tup = 100                                   # Ramp up period
-tpause = 300                                # Plataeu period (choose 300 (left fig panels) or 400 (right fig panels))
+tpause = 400                                # Plataeu period (choose 300 (left fig panels) or 400 (right fig panels))
 tdown = 200                                 # Ramp down period
 tstart = 0                                  # Start of forcing
 
-r1 = (H1-H0)/tup                                 # Rate of forcing increase
-r2 = (H1-H0)/tdown                               # Rate of forcing decrease
+r1 = H1/tup                                 # Rate of forcing increase
+r2 = H1/tdown                               # Rate of forcing decrease
 
-# Time settings for Monte-Carlo simulations
-tspan = [-200, 1000]
-h = 1
+
+# Time settings for calculation of stable manifold(s) of saddle
+tspan = [4000, 0]
+h = -1
 t = np.arange(tspan[0],tspan[1]+h,h)
 
 # Indicies of on state and saddle at H0
 ind11 = np.argmin(np.abs(H_sad-H0))
 ind22 = np.argmin(np.abs(H_on-H0))
 
-# Initialise seed
-np.random.seed(1)
+# Initialise variables
+X22 = np.zeros((2,len(t)+1))
+Y22 = np.zeros((2,len(t)+1))
 
-# Number of Monte-Carlo simulations to perform
-N = 1000
+# Start just away from saddle   
+X22[:,0] = [SN_sad[ind11],ST_sad[ind11]+0.000001]
+Y22[:,0] = [SN_sad[ind11],ST_sad[ind11]-0.000001]
 
-# Noise realisations
-randomv = np.random.normal(0, 1, size=(len(t),N))
-randomv2 = np.random.normal(0, 1, size=(len(t),N))
+# Perform Forward-Euler backwards in time from saddle    
+for j in range(len(t)):
+    X22[:,j+1] = X22[:,j] + h*BoxModel_2DH_IVP(t[j],X22[:,j],H_sad[ind11])
+    Y22[:,j+1] = Y22[:,j] + h*BoxModel_2DH_IVP(t[j],Y22[:,j],H_sad[ind11])
 
-# Noise parameters
-sigma = 1E-4/10          # For small noise divide by a factor of 10
-A11 = 0.1263
-A12 = -0.0869
-A21 = 0
-A22 = 0.1008
+Z22 = np.concatenate((X22,Y22),axis=1)
 
-# Noise structure
-A = np.array([[A11, A12], [A21, A22]])
+# Set max and min limits for SN and ST
+SN_low = 0.02
+SN_high = 0.04
+ST_low = 0.02
+ST_high = 0.045
 
-# Initialise variable
-X1 = np.zeros((2,len(t),N))
+# Number of points to dicretise along the R-tipping threshold
+Nvals = [400,800,1600,3200]
 
-# Loop over Monte-Carlo simulations
-for l in range(N):
+Y1 = np.zeros((2,max(Nvals),len(Nvals)))
+
+# Identify data points of basin boundary (for zero/end of forcing) within max and min limits
+Y22SN = Z22[0,(SN_low<S0+Z22[0,:]/100) & (S0+Z22[0,:]/100<=SN_high) & (ST_low<S0+Z22[1,:]/100) & (S0+Z22[1,:]/100<=ST_high)]
+Y22ST = Z22[1,(SN_low<S0+Z22[0,:]/100) & (S0+Z22[0,:]/100<=SN_high) & (ST_low<S0+Z22[1,:]/100) & (S0+Z22[1,:]/100<=ST_high)]
+
+# Time settings for calculation of R-tipping threshold
+tspan = [1200, -100]
+h = -1
+t = np.arange(tspan[0],tspan[1]+h,h)
+
+
+
+for k in range(len(Nvals)):
     
-    X1[:,0,l] = [SN_on[ind22],ST_on[ind22]]
+    # Evenly discretise points along basin boundary
+    dr = (np.diff(Y22SN)**2 + np.diff(Y22ST)**2)**.5 # segment lengths
+    r = np.zeros_like(Y22SN)
+    r[1:] = np.cumsum(dr) # integrate path
+    r_int = np.linspace(0, r.max(), Nvals[k]) # regular spaced path
+    x_int = np.interp(r_int, r, Y22SN) # interpolate
+    y_int = np.interp(r_int, r, Y22ST)
+
+    # Initialise arrays
+    X1 = np.zeros((2,len(t),len(x_int)))
+    r_stats = np.zeros((2,len(t)-1))
+    r_stats1 = np.zeros((2,len(t)-1))
+    r_stats2 = np.zeros((2,len(t)-1))
+    r_stats3 = np.zeros((2,len(t)-1))
+    DR = np.zeros(len(t)-1)
     
-    # Perform Forward Euler to calculate trajectory
+    x0 = [x_int,y_int]
+    
+    X1[:,0,:] = x0
+    
     for i in range(len(t)-1):
-        X1[:,i+1,l] = X1[:,i,l] + h*BoxModel_2DH_IVP(t[i],X1[:,i,l],H(t[i],H0,H1,r1,r2,tpause,tstart)) + np.sqrt(h*sigma)*np.matmul(A,np.array([[randomv[i,l]],[randomv2[i,l]]])).T
+        
+        # Forward Euler step (backwards in time) for each point on R-tipping threshold
+        for j in range(len(x_int)):
+            X1[:,i+1,j] = X1[:,i,j] + h*BoxModel_2DH_IVP(t[i],X1[:,i,j],H(t[i],H0,H1,r1,r2,tpause,tstart))
+        
+        # Current points on R-tipping threshold within region of interest
+        X1SN = X1[0,i+1,(SN_low<S0+X1[0,i+1,:]/100) & (S0+X1[0,i+1,:]/100<=SN_high) & (ST_low<S0+X1[1,i+1,:]/100) & (S0+X1[1,i+1,:]/100<=ST_high)]
+        X1ST = X1[1,i+1,(SN_low<S0+X1[0,i+1,:]/100) & (S0+X1[0,i+1,:]/100<=SN_high) & (ST_low<S0+X1[1,i+1,:]/100) & (S0+X1[1,i+1,:]/100<=ST_high)]
+        
+        dr = (np.diff(X1SN)**2 + np.diff(X1ST)**2)**.5 # segment lengths    
+        DR[i] = np.max(X1SN)-np.min(X1SN)
+        
+        # Re-initialise evenly spaced points along R-tipping threshold 
+        r = np.zeros_like(X1SN)
+        r_stats[:,i] = np.max(dr),len(X1SN)
+        r[1:] = np.cumsum(dr) # integrate path
+        r_int = np.linspace(0, r.max(), Nvals[k]) # regular spaced path
+        X1[0,i+1,:] = np.interp(r_int, r, X1SN) # interpolate
+        X1[1,i+1,:] = np.interp(r_int, r, X1ST)
+        
+    Y1[:,:Nvals[k],k] = X1[:,-1,:]
     
-
-# Save data    
-sp.savemat('Monte_Carlo_simulations_'+str(H1).replace('.', 'p')+'_tstart'+str(tstart)+'_tup'+str(tup)+'_tpause'+str(tpause)+'_tdown'+str(tdown)+'_B_tipping.mat', {'t':t, 'X1':X1})
+    
+# Plotting R-tipping threshold prior to the start of the forcing (Fig. 7)
+plt.figure()
+for k in range(len(Nvals)):
+    plt.plot(S0+Y1[0,:Nvals[k],k]/100,S0+Y1[1,:Nvals[k],k]/100)
+plt.xlim(0.033,0.04)
+plt.ylim(0.033,0.045)
+plt.xlabel(r'$S_N$')
+plt.ylabel(r'$S_T$')
+plt.legend(frameon=False)
+sns.despine()
+plt.plot(S0+SN_on[ind22]/100,S0+ST_on[ind22]/100,'k.',ms=12)

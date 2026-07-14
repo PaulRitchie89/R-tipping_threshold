@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Oct 31 17:40:27 2025
+Created on Fri Jun 19 10:24:35 2026
 
 @author: Paul
 
 Script to generate data for square of return rate for tipping and non-tipping
-trajectories for "Evaluating the skill of a geometric early warning for tipping
-in a rapidly forced nonlinear system"
+trajectories for B-tipping example in "Evaluating the skill of a geometric early
+warning for tipping in a rapidly forced nonlinear system"
 """
 
 import numpy as np
@@ -49,19 +49,18 @@ def calculate_EWS(x,x_det):
 S0 = 0.035  # Reference salinity
 
 # Forcing parameters
-H0 = 0                                      # Initial forcing
-H1 = 0.38                                   # Final forcing
+H0 = 0.37#0                                      # Initial forcing
+H1 = 0.4#0.38                                   # Final forcing
 tup = 100                                   # Ramp up period
 tpause = 300                                # Plataeu period (choose 300 (left fig panels) or 400 (right fig panels))
 tdown = 200                                 # Ramp down period
 tstart = 0                                  # Start of forcing
 
-r1 = H1/tup                                 # Rate of forcing increase
-r2 = H1/tdown                               # Rate of forcing decrease
+
 
 
 # Load in Monte-Carlo simulations data
-mat_contents = sp.loadmat('Monte_Carlo_simulations_'+str(H1).replace('.', 'p')+'_tstart'+str(tstart)+'_tup'+str(tup)+'_tpause'+str(tpause)+'_tdown'+str(tdown)+'_small_noise.mat')
+mat_contents = sp.loadmat('Monte_Carlo_simulations_'+str(H1).replace('.', 'p')+'_tstart'+str(tstart)+'_tup'+str(tup)+'_tpause'+str(tpause)+'_tdown'+str(tdown)+'_B_tipping.mat')
 t = mat_contents['t'][0]
 X = S0+mat_contents['X1']/100
 
@@ -69,7 +68,7 @@ X = S0+mat_contents['X1']/100
 N = 100
 
 # Index for non-tipping trajectories
-idx = X[0,-1,:]>0.034
+idx = X[0,-1,:]>0.0343#0.034
 
 # Extract first N tipping and non-tipping trajectories
 Notip_traj = X[:,:,idx][:,:,:N]
@@ -103,4 +102,4 @@ Decay2_notip = (-np.log(Aut_notip)/1)**2
 Decay2_tip = (-np.log(Aut_tip)/1)**2
 
 # Save data  
-scipy.io.savemat('Monte_Carlo_EWS_wl'+str(wl)+'_'+str(H1).replace('.', 'p')+'_tstart'+str(tstart)+'_tup'+str(tup)+'_tpause'+str(tpause)+'_tdown'+str(tdown)+'_small_noise.mat', {'t2':t, 'Decay2_notip':Decay2_notip, 'Decay2_tip':Decay2_tip})
+scipy.io.savemat('Monte_Carlo_EWS_wl'+str(wl)+'_'+str(H1).replace('.', 'p')+'_tstart'+str(tstart)+'_tup'+str(tup)+'_tpause'+str(tpause)+'_tdown'+str(tdown)+'_B_tipping.mat', {'t2':t, 'Decay2_notip':Decay2_notip, 'Decay2_tip':Decay2_tip})

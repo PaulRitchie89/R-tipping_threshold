@@ -211,7 +211,7 @@ mat_contents = sp.loadmat('Rtipping_edge_state_H'+str(H1).replace('.', 'p')+'_ts
 Edge_state = S0+mat_contents['X1'][:,::-1,:]/100
 
 # Load in Monte-Carlo simulations data
-mat_contents2 = sp.loadmat('Monte_Carlo_simulations_'+str(H1).replace('.', 'p')+'_tstart'+str(tstart)+'_tup'+str(tup)+'_tpause'+str(tpause)+'_tdown'+str(tdown)+'.mat')
+mat_contents2 = sp.loadmat('Monte_Carlo_simulations_'+str(H1).replace('.', 'p')+'_tstart'+str(tstart)+'_tup'+str(tup)+'_tpause'+str(tpause)+'_tdown'+str(tdown)+'_small_noise.mat')
 t2 = mat_contents2['t'][0]
 X2 = S0+mat_contents2['X1']/100
 
@@ -303,4 +303,4 @@ for l in range(N):
     print(l,time.process_time() - start)
 
 # Save data
-scipy.io.savemat('Monte_Carlo_edge_state_dist_'+str(H1).replace('.', 'p')+'_tstart'+str(tstart)+'_tup'+str(tup)+'_tpause'+str(tpause)+'_tdown'+str(tdown)+'.mat', {'t2':t2, 'Notip_traj':Notip_traj, 'Tip_traj':Tip_traj, 'Notip_mindx':Notip_mindx, 'Tip_mindx':Tip_mindx})
+scipy.io.savemat('Monte_Carlo_edge_state_dist_'+str(H1).replace('.', 'p')+'_tstart'+str(tstart)+'_tup'+str(tup)+'_tpause'+str(tpause)+'_tdown'+str(tdown)+'_small_noise.mat', {'t2':t2, 'Notip_traj':Notip_traj, 'Tip_traj':Tip_traj, 'Notip_mindx':Notip_mindx, 'Tip_mindx':Tip_mindx})

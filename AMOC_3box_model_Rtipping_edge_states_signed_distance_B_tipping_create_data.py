@@ -1,15 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Sep  5 16:25:45 2025
+Created on Fri Jun 19 10:17:01 2026
 
 @author: Paul
 
-Script to generate Monte-Carlo simulations data for "Evaluating the skill of a
-geometric early warning for tipping in a rapidly forced nonlinear system" 
+Generate data to provide signed distance to R-tipping threshold for B-tipping
+example in "Evaluating the skill of a geometric early warning for tipping in a
+rapidly forced nonlinear system" 
 """
 
 import numpy as np
+import scipy
 import scipy.io as sp
+import time
+
+
 
 def BoxModel_2DH_IVP(t,x,H):
 
@@ -111,7 +116,7 @@ def H(t,H0,H1,r1,r2,tpause,tstart):
     """
     Hrampup = (H0 + r1*(t-tstart))
     Hrampdown = (H1 - r2*(t-(H1-H0)/r1-tpause-tstart))
-       
+    
     Hforcing = H0*(t<tstart) + Hrampup*(tstart<=t<(H1-H0)/r1+tstart) + (H1)*((H1-H0)/r1+tstart<=t<(H1-H0)/r1+tpause+tstart) +  Hrampdown*((H1-H0)/r1+tpause+tstart<=t<(r1+r2)*(H1-H0)/(r1*r2)+tpause+tstart) + H0*(t>=(r1+r2)*(H1-H0)/(r1*r2)+tpause+tstart)
     
     return(Hforcing) 
@@ -203,47 +208,101 @@ tstart = 0                                  # Start of forcing
 r1 = (H1-H0)/tup                                 # Rate of forcing increase
 r2 = (H1-H0)/tdown                               # Rate of forcing decrease
 
-# Time settings for Monte-Carlo simulations
-tspan = [-200, 1000]
-h = 1
-t = np.arange(tspan[0],tspan[1]+h,h)
+# Load in R-tipping threshold data
+mat_contents = sp.loadmat('Rtipping_edge_state_H'+str(H1).replace('.', 'p')+'_tstart'+str(tstart)+'_tup'+str(tup)+'_tpause'+str(tpause)+'_tdown'+str(tdown)+'_B_tipping.mat')
+Edge_state = S0+mat_contents['X1'][:,::-1,:]/100
 
-# Indicies of on state and saddle at H0
-ind11 = np.argmin(np.abs(H_sad-H0))
-ind22 = np.argmin(np.abs(H_on-H0))
+# Load in Monte-Carlo simulations data
+mat_contents2 = sp.loadmat('Monte_Carlo_simulations_'+str(H1).replace('.', 'p')+'_tstart'+str(tstart)+'_tup'+str(tup)+'_tpause'+str(tpause)+'_tdown'+str(tdown)+'_B_tipping.mat')
+t2 = mat_contents2['t'][0]
+X2 = S0+mat_contents2['X1']/100
 
-# Initialise seed
-np.random.seed(1)
+# Number of data points along R-tipping threshold
+Nvals = len(Edge_state[0,0,:])
 
-# Number of Monte-Carlo simulations to perform
-N = 1000
+# Number of Monte-Carlo simulations of each tipping and non-tipping
+N = 100
 
-# Noise realisations
-randomv = np.random.normal(0, 1, size=(len(t),N))
-randomv2 = np.random.normal(0, 1, size=(len(t),N))
+# Index for non-tipping trajectories
+idx = X2[0,-1,:]>0.0343#0.034
 
-# Noise parameters
-sigma = 1E-4/10          # For small noise divide by a factor of 10
-A11 = 0.1263
-A12 = -0.0869
-A21 = 0
-A22 = 0.1008
+# Extract first N tipping and non-tipping trajectories
+Notip_traj = X2[:,:,idx][:,:,:N]
+Tip_traj = X2[:,:,~idx][:,:,:N]
 
-# Noise structure
-A = np.array([[A11, A12], [A21, A22]])
+# Initialise arrays
+Notip_crossing_number = np.zeros((len(t2)-1,N))
+Notip_mindx = np.zeros((len(t2)-1,N))
 
-# Initialise variable
-X1 = np.zeros((2,len(t),N))
+Tip_crossing_number = np.zeros((len(t2)-1,N))
+Tip_mindx = np.zeros((len(t2)-1,N))
 
-# Loop over Monte-Carlo simulations
+# Index of off state for H0 
+ind33 = np.argmin(np.abs(H_off-H0))
+
+# Off state coordinates       
+SN_off_init = S0+SN_off[ind33]/100
+ST_off_init = S0+ST_off[ind33]/100
+
+# Construct linear line between off state and trajectories
+Notip_m_line = (Notip_traj[1,:,:] - ST_off_init) / (Notip_traj[0,:,:] - SN_off_init)
+Notip_b_line = ST_off_init - Notip_m_line * SN_off_init
+
+Tip_m_line = (Tip_traj[1,:,:] - ST_off_init) / (Tip_traj[0,:,:] - SN_off_init)
+Tip_b_line = ST_off_init - Tip_m_line * SN_off_init
+
+x1, y1 = Edge_state[:,:,:-1]
+x2, y2 = Edge_state[:,:,1:]
+
+# Curve segment: get slope and intercept
+m_curve = (y2 - y1) / (x2 - x1)
+b_curve = y1 - m_curve * x1
+
+Notip_x_start = np.minimum(SN_off_init,Notip_traj[0,:,:])
+Notip_x_end = np.maximum(SN_off_init,Notip_traj[0,:,:])
+
+Tip_x_start = np.minimum(SN_off_init,Tip_traj[0,:,:])
+Tip_x_end = np.maximum(SN_off_init,Tip_traj[0,:,:])
+
+
 for l in range(N):
+   
+    start = time.process_time()
     
-    X1[:,0,l] = [SN_on[ind22],ST_on[ind22]]
+    Notip_dx = np.sqrt((np.subtract(Edge_state[0,:-1,:].T,Notip_traj[0,:-1,l]))**2 + (np.subtract(Edge_state[1,:-1,:].T,Notip_traj[1,:-1,l]))**2)
+    Notip_mindx[:,l] = np.min(Notip_dx,axis=0)
     
-    # Perform Forward Euler to calculate trajectory
-    for i in range(len(t)-1):
-        X1[:,i+1,l] = X1[:,i,l] + h*BoxModel_2DH_IVP(t[i],X1[:,i,l],H(t[i],H0,H1,r1,r2,tpause,tstart)) + np.sqrt(h*sigma)*np.matmul(A,np.array([[randomv[i,l]],[randomv2[i,l]]])).T
+    Tip_dx = np.sqrt((np.subtract(Edge_state[0,:-1,:].T,Tip_traj[0,:-1,l]))**2 + (np.subtract(Edge_state[1,:-1,:].T,Tip_traj[1,:-1,l]))**2)
+    Tip_mindx[:,l] = np.min(Tip_dx,axis=0)
     
+    for i in range(len(t2)-1):       
+    
+        for j in range(Nvals - 1):            
+            
+            # Find intersection point x
+            Notip_x_int = (Notip_b_line[i,l] - b_curve[i,j]) / (m_curve[i,j] - Notip_m_line[i,l])
+            Notip_y_int = Notip_m_line[i,l] * Notip_x_int + Notip_b_line[i,l]
+            
+            # Find intersection point x
+            Tip_x_int = (Tip_b_line[i,l] - b_curve[i,j]) / (m_curve[i,j] - Tip_m_line[i,l])
+            Tip_y_int = Tip_m_line[i,l] * Tip_x_int + Tip_b_line[i,l]
+    
+            # Check if x_int is within segment bounds
+            if min(x1[i,j], x2[i,j]) <= Notip_x_int <= max(x1[i,j], x2[i,j]) and Notip_x_start[i,l] <= Notip_x_int <= Notip_x_end[i,l]:
+                Notip_crossing_number[i,l] += 1  
+                
+            if min(x1[i,j], x2[i,j]) <= Tip_x_int <= max(x1[i,j], x2[i,j]) and Tip_x_start[i,l] <= Tip_x_int <= Tip_x_end[i,l]:
+                Tip_crossing_number[i,l] += 1 
+    
+        # If crossing number is not 1 then the system is outside the region enclosed by the R-tipping threshold
+        # Therefore signed distance to R-tipping threshold is negative
+        if Notip_crossing_number[i,l] != 1:
+            Notip_mindx[i,l] = -Notip_mindx[i,l]
+            
+        if Tip_crossing_number[i,l] != 1:
+            Tip_mindx[i,l] = -Tip_mindx[i,l]
+            
+    print(l,time.process_time() - start)
 
-# Save data    
-sp.savemat('Monte_Carlo_simulations_'+str(H1).replace('.', 'p')+'_tstart'+str(tstart)+'_tup'+str(tup)+'_tpause'+str(tpause)+'_tdown'+str(tdown)+'_B_tipping.mat', {'t':t, 'X1':X1})
+# Save data
+scipy.io.savemat('Monte_Carlo_edge_state_dist_'+str(H1).replace('.', 'p')+'_tstart'+str(tstart)+'_tup'+str(tup)+'_tpause'+str(tpause)+'_tdown'+str(tdown)+'_B_tipping.mat', {'t2':t2, 'Notip_traj':Notip_traj, 'Tip_traj':Tip_traj, 'Notip_mindx':Notip_mindx, 'Tip_mindx':Tip_mindx})

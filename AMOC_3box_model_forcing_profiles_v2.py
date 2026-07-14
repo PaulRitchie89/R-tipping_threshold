@@ -1,30 +1,21 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Feb  5 13:44:39 2026
+Created on Thu Sep  4 12:09:00 2025
 
 @author: Paul
 
-Script that produces Fig 5 in "Evaluating the skill of a
-geometric early warning for tipping in a rapidly forced nonlinear system"
+Script to plot time series and phase plane of reduced 3 box AMOC model
+for Fig 2 in "Evaluating the skill of a geometric early warning
+for tipping in a rapidly forced nonlinear system"
 """
 
+#import math
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 from matplotlib import rc
-import scipy.io as sp
 
-from matplotlib import cm
-from matplotlib.colors import ListedColormap
-
-bwr = cm.get_cmap('bwr', 256)
-colors = bwr(np.linspace(0, 1, 256))
-
-# Mix every colour 40% with white
-colors[:, :3] = 0.7*colors[:, :3] + 0.3
-
-light_bwr = ListedColormap(colors)
-
-fontsize = 12
+fontsize = 12#10#
 rc('font', **{'size' : fontsize})
 rc('text', usetex=True)
 
@@ -87,10 +78,12 @@ def BoxModel_2DH_IVP(t,x,H):
 
     q = lamb*(alpha*(Ts-T0)+beta*(SN-SS)/100)/(1+lamb*alpha*mu)
     aq = np.abs(q)
-
+    
+    # Positive AMOC strength equations
     z0p = (Y/VN)*(q*(ST-SN)+KN*(ST-SN)-100*FN*S0)
     z1p = (Y/VT)*(q*(gamma*SS+(1-gamma)*SIP-ST)+KS*(SS-ST)+KN*(SN-ST)-100*FT*S0)
 
+    # Negative AMOC strength equations
     z0n = (Y/VN)*(aq*(SB-SN)+KN*(ST-SN)-100*FN*S0)
     z1n = (Y/VT)*(aq*(SN-ST)+KS*(SS-ST)+KN*(SN-ST)-100*FT*S0)
     
@@ -101,7 +94,6 @@ def BoxModel_2DH_IVP(t,x,H):
 
     return(z)
     
-
 def H(t,H0,H1,r1,r2,tpause,tstart):
     """
     Piecewise linear freshwater hosing
@@ -113,7 +105,7 @@ def H(t,H0,H1,r1,r2,tpause,tstart):
     H0 : float64
         Initial freshwater hosing level.
     H1 : float64
-        Final freshwater hosing level.
+        Max freshwater hosing level.
     r1 : float64
         Rate of forcing increase
     r2 : float64
@@ -131,10 +123,38 @@ def H(t,H0,H1,r1,r2,tpause,tstart):
     Hrampup = (H0 + r1*(t-tstart))
     Hrampdown = (H1 - r2*(t-(H1-H0)/r1-tpause-tstart))
     
-    Hforcing = H0*(t<tstart) + Hrampup*(tstart<=t<(H1-H0)/r1+tstart) + (H0 + H1)*((H1-H0)/r1+tstart<=t<(H1-H0)/r1+tpause+tstart) +  Hrampdown*((H1-H0)/r1+tpause+tstart<=t<(r1+r2)*(H1-H0)/(r1*r2)+tpause+tstart) + H0*(t>=(r1+r2)*(H1-H0)/(r1*r2)+tpause+tstart)
-    return(Hforcing)    
+    Hforcing = H0*(t<tstart) + Hrampup*(tstart<=t<(H1-H0)/r1+tstart) + (H1)*((H1-H0)/r1+tstart<=t<(H1-H0)/r1+tpause+tstart) +  Hrampdown*((H1-H0)/r1+tpause+tstart<=t<(r1+r2)*(H1-H0)/(r1*r2)+tpause+tstart) + H0*(t>=(r1+r2)*(H1-H0)/(r1*r2)+tpause+tstart)
+    return(Hforcing)
 
-######################### Equilibria #########################################
+def Hlinear(t,H0,H1,r1,tstart):
+    """
+    Piecewise linear freshwater hosing
+    
+    Parameters
+    ----------
+    t : float64
+        Time
+    H0 : float64
+        Initial freshwater hosing level.
+    H1 : float64
+        Final freshwater hosing level.
+    r1 : float64
+        Rate of forcing increase
+    tstart : float64
+        Start time of forcing
+
+    Returns
+    -------
+    Hforcing : float64
+        Piecewise linear freshwater hosing profile.
+    """
+    Hrampup = (H0 + r1*(t-tstart))
+    
+    Hforcing = H0*(t<tstart) + Hrampup*(tstart<=t<(H1-H0)/r1+tstart) +  H1*(t>=(H1-H0)/r1+tstart)
+    return(Hforcing)
+
+
+###################### Model parameters ####################################
     
 S0 = 0.035
 
@@ -169,6 +189,8 @@ FN1 = 0.1311E6
 FN0 = 0.486E6
 FT1 = 0.6961E6
 FT0 = -0.997E6
+
+######################### Equilibria #########################################
 
 SN = np.linspace(-0.3, 0.3, 1000001)
 
@@ -206,82 +228,134 @@ H_sad = np.concatenate((H_sad2,H_sad1))
 SN_sad = np.concatenate((SN_sad2,SN_sad1))
 ST_sad = np.concatenate((ST_sad2,ST_sad1))
 
+# Hopf bifurcation forcing level
+Hhopf = 0.3887
+
 
 ##############################################################################
 
 # Forcing parameters
-H0 = 0                                      # Initial forcing
+H0 = 0#0.35                                      # Initial forcing
 H1 = 0.38                                   # Final forcing
-tup = 100                                   # Ramp up period
-tpause = 300                                # Plataeu period (choose 300 (left fig panels) or 400 (right fig panels))
-tdown = 200                                 # Ramp down period
+tup = 100#10                                   # Ramp up period
+tuplinear = 1200
+tpause = [300,400]#[2600,2900]#[337.3410965320802]#     # Plataeu period
+tdown = 200#20                                 # Ramp down period
 tstart = 0                                  # Start of forcing
 
-r1 = H1/tup                                 # Rate of forcing increase
-r2 = H1/tdown                               # Rate of forcing decrease
+r1 = (H1-H0)/tup                                 # Rate of forcing increase
+r2 = (H1-H0)/tdown                               # Rate of forcing decrease
+r1linear = (H1-H0)/tuplinear
 
-# Load in gridded data of points in phase space that tip vs those that do not
-mat_contents = sp.loadmat('Rtipping_threshold_grid_tstart'+str(tstart)+'_tup'+str(tup)+'_tpause'+str(tpause)+'_tdown'+str(tdown)+'_hires.mat')
-t0_vals = mat_contents['t0_vals'][0]
-SN_vals = mat_contents['SN_vals'][0]
-ST_vals = mat_contents['ST_vals'][0]
-Tip_idx = mat_contents['Tip_idx']
+# Index of on, off and saddle equilibria for zero hosing
+ind11 = np.argmin(np.abs(H_sad-H0))
+ind22 = np.argmin(np.abs(H_on-H0)) 
+ind33 = np.argmin(np.abs(H_off-H0))
 
-# Set max and min limits for SN and ST
-SN_low = 0.033
-SN_high = 0.04
-ST_low = 0.033
-ST_high = 0.045
+# Time parameters
+tspan2 = [0, 10000]
+h2 = 1
+t2 = np.arange(tspan2[0],tspan2[1]+h2,h2)
 
-# Time intervals before forcing starts to look at
-t0_vals2 = np.linspace(0,-400,9)
 
-# Indicies of on state and saddle at H0
-ind1 = np.argmin(np.abs(H_sad-H0))
-ind2 = np.argmin(np.abs(H_on-H0))
+# Initialise figure
+fig2,ax2 = plt.subplots(2,1,sharex=True)
+sns.despine()
+
+ax2[0].set_ylabel('Freshwater hosing (Sv)')
+ax2[1].set_ylabel('$S_N$')
+ax2[1].set_xlabel('Time (years)')
+ax2[0].set_xlim(0,2000)
+
+fig, ax = plt.subplots(1,1)
+ax.set_xlabel('$S_N$')
+ax.set_ylabel('$S_T$')
+sns.despine()
+
+Forcing_profile = np.zeros(len(t2)-1)
+Forcing_linear_profile = np.zeros(len(t2)-1)
+
+ax2[0].plot(tspan2,[Hhopf,Hhopf],'k--')
+
+# Loop over two plateau durations
+for j in range(len(tpause)):
+    
+    # Initialise state variables
+    X2 = np.zeros((2,len(t2)))
+    X3 = np.zeros((2,len(t2)))
+    
+    # Start at on equilibrium
+    X2[:,0] = [SN_on[ind22],ST_on[ind22]]
+    X3[:,0] = [SN_on[ind22],ST_on[ind22]]
+    
+    # Perform Forward Euler
+    for i in range(len(t2)-1):
+        X2[:,i+1] = X2[:,i] + h2*BoxModel_2DH_IVP(t2[i],X2[:,i],H(t2[i],H0,H1,r1,r2,tpause[j],tstart))
+        X3[:,i+1] = X3[:,i] + h2*BoxModel_2DH_IVP(t2[i],X3[:,i],Hlinear(t2[i],H0,H1,r1linear,tstart))
+        Forcing_profile[i] = H(t2[i],H0,H1,r1,r2,tpause[j],tstart)
+        Forcing_linear_profile[i] = Hlinear(t2[i],H0,H1,r1linear,tstart)
+    
+    # Plotting 
+    ax2[0].plot(t2[:-1],Forcing_profile)
+    ax2[1].plot(t2,S0+X2[0,:]/100)
+    
+    ax.plot(S0+X2[0,:]/100,S0+X2[1,:]/100)
+    
+    if j==0:
+        ax2[0].plot(t2[:-1],Forcing_linear_profile,'tab:green')
+        ax2[1].plot(t2,S0+X3[0,:]/100,'tab:green')
+        ax.plot(S0+X3[0,:]/100,S0+X3[1,:]/100,'tab:green')
+    
+fig.tight_layout()
+fig2.tight_layout()
+
+
+ax.plot(S0+SN_on[ind22]/100,S0+ST_on[ind22]/100,'k.',ms=12)
+ax.plot(S0+SN_off[ind33]/100,S0+ST_off[ind33]/100,'k.',ms=12)
+
+ax.text(0.03305,0.0364,'\\textbf{OFF}')
+ax.text(0.03515,0.0365,'\\textbf{ON}')
+
 
 # Time settings for calculation of stable manifold(s) of saddle
-tspan3 = [5000, -5000]
+tspan3 = [10000, -10000]
 h3 = -1
 t_basin_boundary = np.arange(tspan3[0],tspan3[1]-h3,h3)
 
 # Initialise variables
 X11 = np.zeros((2,len(t_basin_boundary)+1))
 Y11 = np.zeros((2,len(t_basin_boundary)+1))
+X22 = np.zeros((2,len(t_basin_boundary)+1))
+Y22 = np.zeros((2,len(t_basin_boundary)+1))
+
+# Indicies of on state and saddle at H0
+ind1 = np.argmin(np.abs(H_sad-H0))
+ind2 = np.argmin(np.abs(H_sad-H1))
 
 # Start just away from saddle   
 X11[:,0] = [SN_sad[ind1],ST_sad[ind1]+0.0001]
 Y11[:,0] = [SN_sad[ind1],ST_sad[ind1]-0.0001]
+X22[:,0] = [SN_sad[ind2],ST_sad[ind2]+0.000001]
+Y22[:,0] = [SN_sad[ind2],ST_sad[ind2]-0.000001]
 
 # Perform Forward-Euler backwards in time from saddle    
 for k in range(len(t_basin_boundary)):
     X11[:,k+1] = X11[:,k] + h3*BoxModel_2DH_IVP(t_basin_boundary[k],X11[:,k],H_sad[ind1])
     Y11[:,k+1] = Y11[:,k] + h3*BoxModel_2DH_IVP(t_basin_boundary[k],Y11[:,k],H_sad[ind1])
+    X22[:,k+1] = X22[:,k] + h3*BoxModel_2DH_IVP(t_basin_boundary[k],X22[:,k],H_sad[ind2])
+    Y22[:,k+1] = Y22[:,k] + h3*BoxModel_2DH_IVP(t_basin_boundary[k],Y22[:,k],H_sad[ind2])
 
-# Plotting figure
-fig, ax = plt.subplots(3,3,figsize=(7.5,6),sharex=True,sharey=True)
+ax.plot(S0+X11[0,:]/100,S0+X11[1,:]/100,'k',zorder=-10)
+ax.plot(S0+Y11[0,:]/100,S0+Y11[1,:]/100,'k',zorder=-10)
 
-ax[0,0].set_xlim(0.033,0.04)
-ax[0,0].set_ylim(0.033,0.045)
+ax.plot(S0+X22[0,18500:]/100,S0+X22[1,18500:]/100,'k',alpha=0.3,zorder=-10)
+ax.plot(S0+Y22[0,18500:]/100,S0+Y22[1,18500:]/100,'k',alpha=0.3,zorder=-10)
 
-ax[2,0].set_xlabel(r'$S_N$')
-ax[2,1].set_xlabel(r'$S_N$')
-ax[2,2].set_xlabel(r'$S_N$')
-ax[0,0].set_ylabel(r'$S_T$')
-ax[1,0].set_ylabel(r'$S_T$')
-ax[2,0].set_ylabel(r'$S_T$')
+ind222 = np.argmin(np.abs(H_on-H0))
+ind333 = np.argmin(np.abs(H_on-H1))
 
-for j in range(len(t0_vals2)):
-    
-    idx = np.argmin(np.abs(t0_vals2[j]-t0_vals))
+ax.plot(S0+SN_on[ind333:ind222]/100,S0+ST_on[ind333:ind222]/100,'k--',alpha=0.3,zorder=-10)
+ax.plot(S0+SN_on[ind333]/100,S0+ST_on[ind333]/100,'k.',alpha=0.3,ms=12)
 
-    ax[int(j/3),j%3].plot(S0+X11[0,:]/100, S0+X11[1,:]/100, 'k', alpha=0.2)
-    ax[int(j/3),j%3].plot(S0+Y11[0,:]/100, S0+Y11[1,:]/100, 'k', alpha=0.2)  
-    
-    ax[int(j/3),j%3].plot(S0+SN_sad[ind1]/100, S0+ST_sad[ind1]/100, 'k', marker='X', ms = 4, alpha=0.2)
-    ax[int(j/3),j%3].plot(S0+SN_on[ind2]/100, S0+ST_on[ind2]/100, 'silver', marker='o', ms = 4)
-    ax[int(j/3),j%3].pcolor(SN_vals/100+S0,ST_vals/100+S0,Tip_idx[idx,:,:].T,cmap=light_bwr)
-    
-    ax[int(j/3),j%3].set_title("{:4n}".format(t0_vals2[j])+' years')
-
-fig.tight_layout()
+ax.set_xlim(0.0325,0.036)
+ax.set_ylim(0.036,0.038)
